@@ -1,5 +1,15 @@
 [
   {
+    "slug": "aws-ec2-v2ray-ubuntu-deployment-guide-en",
+    "title": "Setting Up a Dedicated V2Ray Node",
+    "date": "2026-09-18",
+    "tags": [
+      "NODE",
+      "V2Ray"
+    ],
+    "summary": "A short introduction to this blog and what I plan to write here."
+  },
+  {
     "slug": "hello-world",
     "title": "Hello World",
     "date": "2026-01-15",

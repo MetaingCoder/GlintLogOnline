@@ -5,7 +5,14 @@
     <link>https://your-domain.example/</link>
     <description>A minimal personal blog about technology, experiments, notes, and the web.</description>
     <language>en</language>
-    <lastBuildDate>Thu, 15 Jan 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Fri, 18 Sep 2026 00:00:00 GMT</lastBuildDate>
+    <item>
+      <title>Setting Up a Dedicated V2Ray Node</title>
+      <link>https://your-domain.example/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</link>
+      <description>A short introduction to this blog and what I plan to write here.</description>
+      <pubDate>Fri, 18 Sep 2026 00:00:00 GMT</pubDate>
+      <guid isPermaLink="true">https://your-domain.example/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</guid>
+    </item>
     <item>
       <title>Hello World</title>
       <link>https://your-domain.example/post.html?slug=hello-world</link>
