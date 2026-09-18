@@ -1,3 +1,11 @@
+---
+title: "Setting Up a Dedicated V2Ray Node"
+date: 2026-09-18
+tags: [NODE, V2Ray]
+summary: "A short introduction to this blog and what I plan to write here."
+draft: false
+lang: en
+---
 # 🚀 AWS EC2 Hands-On Deployment Guide: Setting Up a Dedicated V2Ray Node (Ubuntu)
 
 ## Introduction
