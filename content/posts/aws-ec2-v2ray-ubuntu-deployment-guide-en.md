@@ -1,8 +1,10 @@
 ---
-title: AWS EC2 + Ubuntu: Deploying V2Ray
-date: 2026-9-16
+title: "AWS EC2 + Ubuntu: Deploying V2Ray"
+date: 2026-09-19
 tags: ["AWS", "EC2", "Ubuntu", "V2Ray", "Linux", "Networking"]
-description: A concise guide to deploying and configuring V2Ray on an AWS EC2 Ubuntu server.
+summary: "A concise guide to deploying and configuring V2Ray on an AWS EC2 Ubuntu server."
+draft: false
+lang: en
 ---
 
 # AWS EC2 + Ubuntu: A Practical Guide to Deploying V2Ray
