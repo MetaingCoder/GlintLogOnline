@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://blog.kusteo.com/index.html</loc><lastmod>2026-09-19</lastmod></url>
-  <url><loc>https://blog.kusteo.com/about.html</loc><lastmod>2026-09-19</lastmod></url>
-  <url><loc>https://blog.kusteo.com/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</loc><lastmod>2026-09-19</lastmod></url>
-  <url><loc>https://blog.kusteo.com/post.html?slug=hello-world</loc><lastmod>2026-01-15</lastmod></url>
-  <url><loc>https://blog.kusteo.com/post.html?slug=second-post</loc><lastmod>2026-01-10</lastmod></url>
+  <url><loc>https://teogeek.pages.dev/index.html</loc><lastmod>2026-09-19</lastmod></url>
+  <url><loc>https://teogeek.pages.dev/about.html</loc><lastmod>2026-09-19</lastmod></url>
+  <url><loc>https://teogeek.pages.dev/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</loc><lastmod>2026-09-19</lastmod></url>
+  <url><loc>https://teogeek.pages.dev/post.html?slug=hello-world</loc><lastmod>2026-01-15</lastmod></url>
+  <url><loc>https://teogeek.pages.dev/post.html?slug=second-post</loc><lastmod>2026-01-10</lastmod></url>
 </urlset>
