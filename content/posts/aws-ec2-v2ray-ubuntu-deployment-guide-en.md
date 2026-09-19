@@ -1,33 +1,34 @@
 ---
-title: "Setting Up a Dedicated V2Ray Node"
-date: 2026-09-18
-tags: [NODE, V2Ray]
-summary: "A short introduction to this blog and what I plan to write here."
-draft: false
-lang: en
+title: AWS EC2 + Ubuntu: Deploying V2Ray
+date: 2026-9-16
+tags: ["AWS", "EC2", "Ubuntu", "V2Ray", "Linux", "Networking"]
+description: A concise guide to deploying and configuring V2Ray on an AWS EC2 Ubuntu server.
 ---
-# 🚀 AWS EC2 Hands-On Deployment Guide: Setting Up a Dedicated V2Ray Node (Ubuntu)
+
+# AWS EC2 + Ubuntu: A Practical Guide to Deploying V2Ray
 
 ## Introduction
 
-After spending some time working with cloud servers, I decided to document the complete process of deploying a V2Ray node from scratch on AWS EC2. For people who are new to AWS, Linux, and V2Ray, the hardest part is often not any individual command, but understanding how all the steps fit together: Why do you need to configure a security group after creating an EC2 instance? Why can SSH connect successfully while the V2Ray client cannot? Why might a client show port `7890`, while AWS should not have port `7890` exposed? Why can V2Ray show as running while external connections still fail? These issues may seem unrelated, but they are actually connected to cloud-server networking, ports, firewalls, and application listeners.
+This guide documents a complete, from-scratch deployment workflow for running V2Ray on an Ubuntu server hosted by AWS EC2. For beginners, the difficult part is often not any single command, but understanding how the different layers fit together: the EC2 instance, SSH access, AWS security groups, the Ubuntu firewall, listening ports, V2Ray itself, and the client. For example, SSH may work while the V2Ray client cannot connect, or a client may use `127.0.0.1:7890` locally even though the server-side V2Ray service listens on `1080`. These are not contradictory situations; they involve different network layers and different ports.
 
-This guide therefore does more than simply list a few commands. It follows the actual deployment sequence, covering the AWS account, EC2 instance creation, Ubuntu preparation, SSH access, security-group configuration, V2Ray installation, UUID generation, configuration-file editing, service startup, client configuration, and troubleshooting. You can use it as a hands-on guide from scratch, or return to the relevant section when you encounter a problem during deployment.
+Rather than presenting a collection of commands, this article follows the deployment process in order: creating an EC2 instance, preparing Ubuntu, connecting through SSH, configuring the security group, installing V2Ray, generating a UUID, editing the configuration, starting and checking the service, configuring a client, and troubleshooting common connection problems. You can read it from beginning to end as a hands-on tutorial or jump directly to the section relevant to a problem you are troubleshooting.
 
-This guide uses Ubuntu Server LTS and AWS EC2 as the base environment. AWS console interfaces, instance types, free-tier policies, and V2Ray client interfaces may change over time, so do not worry if your screen looks slightly different from the examples here; simply locate the corresponding function. Keep in mind that AWS resources such as instances, storage, public IP addresses, and data transfer may incur charges. Before creating a server, check the free-tier eligibility and pricing that apply to your account. This guide is intended primarily for learning about Linux cloud servers, network-service deployment, and related technologies. Use these techniques in compliance with applicable laws, regulations, and the AWS Terms of Service.
+The baseline environment is Ubuntu Server LTS on AWS EC2. AWS changes its console interface, instance types, pricing, and free-tier policies over time, and V2Ray clients may also change their interfaces. If the labels in your console differ slightly from those shown here, look for the corresponding function rather than following the wording literally. AWS resources such as instances, storage, public IP addresses, and data transfer may incur charges, so check the pricing and eligibility that apply to your account before creating a server. This article is primarily intended for learning about Linux cloud servers, network services, and server administration. Use cloud resources and network services in accordance with applicable laws, regulations, and the AWS Terms of Service.
+
+> **Note:** The V2Ray configuration used in this guide is intentionally basic and is presented as a learning example. Production deployments may require additional security measures and a different architecture, such as TLS and a reverse proxy.
 
 ---
 
-## 1. Prerequisites: What Do You Need?
+## 1. Prerequisites
 
-Before starting, you need a working AWS account, a computer with Internet access, and a secure place to store your AWS SSH private key. Windows users can use PowerShell or Windows Terminal, while macOS and Linux users can use the built-in Terminal application. On the server side, we will create an Ubuntu Server cloud instance on AWS EC2. On the client side, choose a client that supports the required protocol for your device and use case.
+Before you begin, you need an AWS account, a computer with Internet access, and a secure location for storing your AWS SSH private key. Windows users can use PowerShell or Windows Terminal, while macOS and Linux users can use the built-in terminal. On the server side, this guide uses AWS EC2 with Ubuntu Server. On the client side, use a client that supports the protocol and transport settings described in this guide.
 
-The entire deployment can be understood as the following chain:
+The entire deployment process can be simplified into the following chain:
 
 ```text
-你的电脑
+Your computer
    │
-   │ SSH / 客户端连接
+   │ SSH / Client connection
    ▼
 AWS EC2
    │
@@ -41,99 +42,99 @@ V2Ray
 Internet
 ```
 
-AWS EC2 provides the server environment, Ubuntu is the operating system running on the EC2 instance, V2Ray is the network service itself, and the AWS Security Group and Ubuntu firewall control whether external traffic can reach specific ports on the server.
+AWS EC2 provides the server environment, Ubuntu is the operating system running on EC2, V2Ray is the network service actually running on the server, and the AWS security group and Ubuntu firewall control whether external networks can access specified ports on the server.
 
-在开始之前，还需要特别理解一个概念：**客户端本地代理端口和服务器端服务端口是两回事。**例如某些客户端可能在你的电脑本地使用 `127.0.0.1:7890` 作为代理入口，这个 `7890` 属于你自己的电脑，并不代表 AWS 服务器需要监听或者开放 `7890`。如果服务器上的 V2Ray 实际监听的是 `10086`，那么服务器需要处理的就是 `10086`，而不是客户端本地的 `7890`。
+Before starting, it is important to understand one concept: **the client's local proxy port and the server's service port are two different things.** For example, some clients may use `127.0.0.1:7890` as the local proxy entry point on your computer. That `7890` belongs to your own computer; it does not mean that the AWS server needs to listen on or expose `7890`. If V2Ray on the server actually listens on `1080`, the server needs to listen on `1080`; it does not need to expose the client's local `7890`.
 
 ---
 
 ## 2. Creating an AWS EC2 Instance
 
-After signing in to the AWS Management Console, enter `EC2` in the top search bar and open the EC2 service. Find “Launch instance.” When creating the instance, you can first set an instance name such as `My-V2Ray-Server`, `My-VPS`, or `Ubuntu-Server`. This name is mainly for your own identification and does not affect V2Ray.
+After signing in to the AWS Management Console, enter `EC2` in the search bar at the top, open the EC2 service page, and find **Launch instance**. When creating the instance, you can first set an instance name such as `My-V2Ray-Server`, `My-VPS`, or `Ubuntu-Server`. This name is mainly for your own identification and does not affect V2Ray later.
 
-Next, select the operating-system image, known as the AMI. This guide uses Ubuntu Server as an example, and it is generally preferable to choose a currently supported LTS release offered by the AWS console. LTS means Long Term Support, which is generally well suited to server environments. If you see releases such as Ubuntu 22.04 LTS or Ubuntu 24.04 LTS, choose according to current software compatibility and your needs. Do not assume that you must use exactly the version mentioned in an older tutorial.
+Next, choose the operating system image, or AMI. This article uses Ubuntu Server as an example, and it is generally preferable to choose a stable LTS version currently offered in the AWS console. LTS means Long Term Support, which is usually more suitable for server environments. If you see versions such as Ubuntu 22.04 LTS or Ubuntu 24.04 LTS, choose one based on current software compatibility and your actual needs. Do not assume you must use exactly the version mentioned in an older tutorial.
 
-For the instance type, a small instance may be sufficient if you are only learning Linux, testing V2Ray, or running very lightweight services. However, AWS instance types and free-tier policies can change. The frequently mentioned `t2.micro` in older tutorials does not mean it will necessarily be free at all times, in all regions, or for every account. Use the eligibility and pricing shown in your own AWS console as the source of truth.
+For the instance type, if you are only learning Linux, testing V2Ray, or running very lightweight services, you can choose a small instance type currently offered by AWS. However, AWS instance types and free-tier policies change. The `t2.micro`, which appears frequently in older tutorials, is not necessarily free at all times, in all regions, or for all accounts. When creating the instance, use the eligibility and pricing shown in your own AWS console as the reference.
 
-Next, create an SSH Key Pair. Find the Key pair option, create a new key pair such as `MyEC2Key`, choose the appropriate key format, and download it. For Linux, macOS, and Windows OpenSSH environments, `.pem` is commonly used. Store the file securely, for example in a dedicated AWS key directory on your computer. This file is important because you will need it to connect to the server via SSH. Never upload the `.pem` file to GitHub, a public cloud drive, a forum, or any other public location, and never commit it to a code repository.
+Next, create an SSH key pair. Find the key pair option, create a new key pair such as `MyEC2Key`, choose an appropriate key format, and download it. For Linux/macOS/Windows OpenSSH environments, `.pem` is a common format. After downloading it, store it securely, for example in a dedicated AWS key directory on your computer. This file is extremely important because you will need it to log in to the server via SSH. Do not upload the `.pem` file to GitHub, public cloud storage, forums, or any other public location, and never commit it to a code repository.
 
-After configuring the key pair, move on to networking. The Security Group is especially important. You can think of it as a network firewall around the EC2 instance that determines which sources can access which server ports. SSH normally uses TCP port 22, so your computer must be allowed to reach the server over TCP 22. If V2Ray later listens on TCP 10086, external access to TCP 10086 must also be permitted according to your actual use case.
+After configuring the key, move on to the network settings. The AWS security group deserves particular attention. You can think of a security group as a network firewall around the EC2 instance. It determines which sources can access which ports on the server. SSH uses TCP port 22 by default, so your computer must be allowed to access the server through TCP 22. If V2Ray later listens on TCP 1080, external access to TCP 1080 must also be allowed according to your actual use case.
 
-If you are using SSH only to administer the server yourself, avoid leaving SSH open to the entire Internet indefinitely. For example, you can restrict TCP 22 to your current public IP and use `/32` to represent a single IP address. If your public IP changes frequently, adjust the rule as needed, but do not permanently allow all sources simply for convenience.
+If you are only using SSH to manage the server yourself, it is better not to leave SSH open to the entire world. For example, you can restrict the source of TCP 22 to your current public IP and use `/32` to represent a single IP address. If your public IP changes frequently, adjust the rule as needed, but do not permanently allow all sources simply for convenience.
 
-Do not open large numbers of unnecessary ports. If the server only needs SSH and V2Ray, there is usually no reason to expose ports such as `8080`, `8888`, `7890`, or `12345`. A good server-management principle is: open what you need, rather than opening everything first and deciding later.
+Pay particular attention to not opening large numbers of unnecessary ports. If the server only needs SSH and V2Ray, there is usually no need to open a collection of unused ports such as `8080`, `8888`, `7890`, and `12345`. The principle should be “open only what is needed,” rather than “open everything first and deal with it later.”
 
-Finally, review the instance name, Ubuntu image, instance type, key pair, network settings, and storage configuration. Once everything is correct, click “Launch instance.” Wait for the instance state to become `Running`, then open its details and find `Public IPv4 address`. This is the public IPv4 address you may use later for SSH access and client connections.
+Finally, review the instance name, Ubuntu image, instance type, key pair, network settings, and storage configuration. Once everything is correct, click “Launch instance.” Wait until the instance status becomes `Running`, then open the instance details and find `public IPv4 address`. This is the public IPv4 address you may use later for SSH access and client connections.
 
 ---
 
 ## 3. Connecting to Ubuntu via SSH
 
-EC2 创建完成并进入 `Running` 状态以后，就可以使用 SSH 登录服务器。SSH 是 Linux 服务器最常见的远程管理方式，你实际上是在自己的电脑上打开一个终端，然后通过互联网连接到 AWS 中的 Ubuntu 系统。
+Once the EC2 instance has been created and is in the `Running` state, you can use SSH to log in. SSH is one of the most common ways to remotely manage Linux servers. In practice, you open a terminal on your own computer and connect over the Internet to the Ubuntu system on AWS.
 
-如果你使用 Windows，可以打开 PowerShell 或 Windows Terminal。Assume your key file is named `MyEC2Key.pem`，and the server public IP is `203.0.113.10`，那么命令可以写成：
+If you are using Windows, open PowerShell or Windows Terminal. Assuming your key file is named `MyEC2Key.pem` and the server's public IP is `203.0.113.10`, the command is:
 
 ```bash
 ssh -i "MyEC2Key.pem" ubuntu@203.0.113.10
 ```
 
-If the key is on the Windows desktop, you can use a command such as:
+If the key file is on the Windows desktop, you can use something like:
 
 ```powershell
 ssh -i "C:\Users\Administrator\Desktop\MyEC2Key.pem" ubuntu@203.0.113.10
 ```
 
-macOS 或 Linux 用户可以先进入密钥所在目录，then run `chmod 400 MyEC2Key.pem` to restrict the private-key permissions，再执行：
+macOS or Linux users can first enter the directory containing the key, run `chmod 400 MyEC2Key.pem` to restrict the private key permissions, and then run:
 
 ```bash
 ssh -i "MyEC2Key.pem" ubuntu@203.0.113.10
 ```
 
-这里的 `ubuntu` 非常重要，因为 Ubuntu 官方 EC2 镜像通常使用 `ubuntu` 作为默认 SSH 用户。也就是说，第一次连接时不要按照一些普通 VPS 教程写成 `root@服务器IP`。如果使用的是 Ubuntu EC2 镜像，通常应该使用 `ubuntu@服务器IP`，然后在需要管理员权限时通过 `sudo` 执行命令。
+The `ubuntu` username is important because official Ubuntu EC2 images typically use `ubuntu` as the default SSH user. In other words, do not follow generic VPS tutorials and use `root@server-ip` for the first connection. With an Ubuntu EC2 image, you will normally use `ubuntu@server-ip` and then use `sudo` when administrator privileges are required.
 
-第一次 SSH 连接时，终端可能会出现类似 `The authenticity of host ... can't be established` 的提示，这是 SSH 在询问你是否信任这台服务器。如果确认这是自己刚刚创建的 EC2 实例，可以输入 `yes` 继续。After a successful login, you will usually see something like `ubuntu@ip-xxx-xxx-xxx-xxx:~$` 的命令提示符。Seeing this prompt means you are now operating inside the Ubuntu server on AWS rather than on your local computer.
+During the first SSH connection, the terminal may display a message such as `The authenticity of host ... can't be established`. SSH is asking whether you trust the server. If you have confirmed that this is the EC2 instance you just created, enter `yes` to continue. After a successful login, you will typically see a prompt such as `ubuntu@ip-xxx-xxx-xxx-xxx:~$`. Once you see this prompt, you are operating inside the Ubuntu server on AWS rather than on your own computer.
 
-If SSH fails, check three things first.第一，Confirm that the EC2 instance is still `Running` and that you are using its current public IP；第二，check whether the Security Group allows TCP port 22；第三，and verify the `.pem` path and key are correct。If you see `Permission denied (publickey)`, focus on the username, key, and the Key Pair used when the instance was created.
+If the SSH connection fails, check three things first. First, confirm that the EC2 instance is still in the `Running` state and that you are using its current public IP. Second, check whether the security group allows TCP port 22. Third, verify the `.pem` file path and key. If you see `Permission denied (publickey)`, focus on the username, key, and the key pair used when the instance was created.
 
 ---
 
 ## 4. Updating Ubuntu and Preparing the Environment
 
-After successfully logging in to Ubuntu, update the package list and upgrade the system first.最常用的命令就是 `sudo apt update`，它负责更新软件包索引；之后使用 `sudo apt upgrade -y` 安装可用的软件更新。因此可以直接执行：
+After successfully logging in to Ubuntu, it is recommended to update the package list and upgrade the system first. The most common command is `sudo apt update`, which updates the package index, followed by `sudo apt upgrade -y` to install available updates. You can therefore run:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 ```
 
-After the update finishes, you can check the current Ubuntu version，执行 `lsb_release -a`；check the Linux kernel可以使用 `uname -a`；check memory usage可以使用 `free -h`；check disk space则可以使用 `df -h`。These commands are not required for V2Ray, but they are worth learning if you plan to manage Linux cloud servers long term.
+After the system update is complete, you can check the Ubuntu version with `lsb_release -a`. Use `uname -a` to view the Linux kernel, `free -h` to check memory usage, and `df -h` to check disk space. These commands are not required for V2Ray, but they are worth learning if you plan to use Linux cloud servers long term.
 
-If the system recommends restarting services or rebooting after a kernel update, follow the prompt.If you need to reboot the server, run `sudo reboot`，wait a few minutes, and reconnect via SSH.If your EC2 instance does not have a persistent public IP, its public IP may change after the instance is stopped and started again，所以重新连接前最好回 AWS 控制台确认当前 Public IPv4 address。
+If the system indicates that certain services need to be restarted or recommends a reboot after a kernel update, follow the prompt. If you need to reboot the server, run `sudo reboot`, wait a few minutes, and reconnect via SSH. Note that if your EC2 instance does not have a fixed public IP, its public IP may change after the instance is stopped and started again. Before reconnecting, it is therefore best to confirm the current public IPv4 address in the AWS console.
 
 ---
 
 ## 5. Installing V2Ray
 
-Ubuntu 基础环境准备完成之后，就可以安装 V2Ray。V2Ray is a server-side network service, so installation alone is not enough; it must be configured before it can work as intended.Before installation, make sure the system has `curl`，如果没有，可以执行 `sudo apt install curl -y`。
+Once the Ubuntu environment is ready, you can install V2Ray. V2Ray is a server-side network service, so further configuration is required after installation before it can work as intended. Before installing, make sure `curl` is available; if not, run `sudo apt install curl -y`.
 
-V2Fly 项目提供了常见的安装脚本方式，可以使用：
+V2Fly provides a common installation-script method. You can use:
 
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/v2fly/fhs-install-v2ray/master/install-release.sh)
 ```
 
-Wait for the installer to finish.安装结束后，可以尝试执行 `v2ray version` to check the version。如果系统能够正常输出版本号，通常说明程序已经安装成功。
+Wait for the installer to finish. After installation, you can run `v2ray version` to check the version. If the system outputs a version number normally, the program has generally been installed successfully.
 
-On Ubuntu, V2Ray can normally be managed as a systemd service.systemd 是 Linux 中非常重要的服务管理机制，因此以后你不需要每次都手动运行 V2Ray 程序，而是可以通过 `systemctl` 控制它。例如start the service with `sudo systemctl start v2ray`，stop it with `sudo systemctl stop v2ray`，restart it with `sudo systemctl restart v2ray`，check its status with `sudo systemctl status v2ray`。
+On Ubuntu, V2Ray can usually be managed as a systemd service. systemd is an important service-management mechanism in Linux, so you do not need to manually run V2Ray every time. Instead, you can control it with `systemctl`. For example, start it with `sudo systemctl start v2ray`, stop it with `sudo systemctl stop v2ray`, restart it with `sudo systemctl restart v2ray`, and check its status with `sudo systemctl status v2ray`.
 
-To have V2Ray start automatically after a server reboot, run `sudo systemctl enable v2ray`。You can also use `sudo systemctl enable --now v2ray`，which enables automatic startup and starts the service immediately.
+If you want V2Ray to start automatically after the server reboots, run `sudo systemctl enable v2ray`. You can also use `sudo systemctl enable --now v2ray`, which enables automatic startup and starts the service immediately.
 
-Remember: **successful installation does not mean successful configuration**.A newly installed V2Ray does not necessarily mean it is already listening on the port you need.Next, generate a UUID, edit the configuration file, and verify that the service can start correctly.
+Keep in mind that **successful installation does not mean successful configuration**. A newly installed V2Ray is not necessarily listening on the port you need. You still need to generate a UUID, modify the configuration file, and verify that the service can start normally.
 
 ---
 
 ## 6. Generating a UUID
 
-V2Ray 配置通常需要一个 UUID 作为客户端身份凭证。Linux 本身就可以生成 UUID，不需要额外安装工具。执行：
+V2Ray configuration typically requires a UUID as a client authentication credential. Linux can generate a UUID without any additional tools. Run:
 
 ```bash
 cat /proc/sys/kernel/random/uuid
@@ -145,35 +146,35 @@ The terminal will output a string similar to:
 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
-The actual value will be different from the example.Copy the UUID generated by your server and store it securely.You will need to enter exactly the same UUID when configuring the client.
+The actual generated value will be different from the example. Copy the UUID generated on your own server and store it securely. You will need to enter exactly the same UUID when configuring the client later.
 
-Although a UUID cannot be used to log in to the server like an SSH private key, it is still client authentication information, so avoid publicly publishing the server IP, port, and UUID together.If you suspect the UUID has been exposed, generate a new UUID and update both the server and client configurations.
+Although a UUID cannot be used to log in to the server in the same way as an SSH private key, it is still client authentication information. Therefore, it is not recommended to publicly disclose the server IP, port, and UUID together. If you suspect that the UUID has been exposed, generate a new UUID and update both the server-side and client-side configurations.
 
 ---
 
 ## 7. Configuring V2Ray
 
-After installation, edit the V2Ray configuration file.常见安装方式下，配置文件位于 `/usr/local/etc/v2ray/config.json`，可以使用 Nano 编辑：
+After installation, you need to edit the V2Ray configuration file. With common installation methods, the configuration file is located at `/usr/local/etc/v2ray/config.json`, and you can edit it with Nano:
 
 ```bash
 sudo nano /usr/local/etc/v2ray/config.json
 ```
 
-Nano 是 Ubuntu 中非常常见的终端文本编辑器。Inside Nano, use the arrow keys to move the cursor，`Ctrl + K` delete the current line，`Ctrl + O` save the file and press Enter to confirm，then press `Ctrl + X` to exit.
+Nano is a common terminal text editor in Ubuntu. Once inside, use the arrow keys to move the cursor, `Ctrl + K` to delete the current line, `Ctrl + O` to save the file and then press Enter to confirm, and finally `Ctrl + X` to exit.
 
-This guide first uses a basic VMess + WebSocket configuration as an example.Replace `你的UUID` below with the actual UUID you generated:
+This article first uses a relatively basic VMess + WebSocket configuration as an experimental example. Replace `YOUR-UUID` below with the actual UUID you generated:
 
 ```json
 {
   "inbounds": [
     {
       "listen": "0.0.0.0",
-      "port": 10086,
+      "port": 1080,
       "protocol": "vmess",
       "settings": {
         "clients": [
           {
-            "id": "你的UUID",
+            "id": "YOUR-UUID",
             "alterId": 0
           }
         ]
@@ -195,51 +196,51 @@ This guide first uses a basic VMess + WebSocket configuration as an example.Repl
 }
 ```
 
-The most important parameters in this configuration are `port`、`protocol`、`id`、`network` 和 `path`。`port` determines which port V2Ray listens on，这里使用的是 `10086`；`protocol` indicates VMess；`id` is the UUID；`network` 设置为 `ws`，indicates WebSocket；`path` is the WebSocket path。
+The most important parameters in this configuration are `port`, `protocol`, `id`, `network`, and `path`. `port` determines which port the V2Ray service listens on; here it is `1080`. `protocol` specifies VMess; `id` is the UUID; `network` is set to `ws`, meaning WebSocket; and `path` is the WebSocket path.
 
-For example, if the server uses `/your-path`, the client must also use `/your-path`.If the server uses `/your-path` but the client uses `/v2ray`, the connection will not work with this configuration even if the IP, port, and UUID are all correct.
+For example, if the server configuration uses `/your-path`, the client must also use `/your-path`. If the server uses `/your-path` while the client enters `/v2ray`, the connection will not work with this configuration even if the IP address, port, and UUID are all correct.
 
-You also need to pay attention to JSON syntax. JSON is strict about brackets, quotation marks, and commas.例如下面这样的配置就存在错误：
+JSON syntax also requires careful attention. JSON is strict about brackets, quotation marks, and commas. For example, the following configuration is incorrect:
 
 ```json
 {
-  "port": 10086,
+  "port": 1080,
   "protocol": "vmess",
 }
 ```
 
-因为最后一个字段后面多了一个逗号。正确写法应该是：
+The problem is the extra comma after the last field. The correct form is:
 
 ```json
 {
-  "port": 10086,
+  "port": 1080,
   "protocol": "vmess"
 }
 ```
 
-After editing the configuration, do not simply assume it is correct; validate it first.
+After modifying the configuration file, validate it before restarting the service.
 
 ---
 
-## 8. Validating the Configuration and Starting V2Ray
+## 8. Checking the Configuration and Starting V2Ray
 
-If `jq` is installed, you can use it to validate the JSON format.If it is not installed, run `sudo apt install jq -y`，然后运行：
+If `jq` is already installed, you can use it to check the JSON format. If it is not installed, run `sudo apt install jq -y`, then run:
 
 ```bash
 sudo jq . /usr/local/etc/v2ray/config.json
 ```
 
-If the JSON is valid, `jq` will format and output it; if there is a syntax error, it will indicate the relevant location.
+If the JSON is valid, `jq` will reformat and output the configuration. If there is a syntax error, it will indicate the relevant error location.
 
-You can also test the configuration using the commands supported by your current V2Ray version.例如某些版本可以使用：
+You can also test the configuration using commands supported by your current V2Ray version. For example, some versions support:
 
 ```bash
 v2ray test -config /usr/local/etc/v2ray/config.json
 ```
 
-如果你的版本命令格式有所不同，可以通过 `v2ray help` 查看当前版本支持的命令。
+If the command format differs in your version, use `v2ray help` to see the commands supported by the current version.
 
-After confirming that there are no obvious configuration errors, restart V2Ray:
+Once you have confirmed that there are no obvious configuration errors, restart V2Ray:
 
 ```bash
 sudo systemctl restart v2ray
@@ -251,7 +252,7 @@ Then check:
 sudo systemctl status v2ray
 ```
 
-If you see something like:
+If you see:
 
 ```text
 Active: active (running)
@@ -259,135 +260,134 @@ Active: active (running)
 
 the V2Ray service is running.
 
-If it shows `failed`, do not keep restarting it repeatedly; check the logs instead.最常用的命令是：
+If it shows `failed`, do not keep running restart repeatedly. Check the logs instead. The most common command is:
 
 ```bash
 sudo journalctl -u v2ray --no-pager -n 100
 ```
 
-To watch the logs in real time, use:
+To monitor the logs in real time, use:
 
 ```bash
 sudo journalctl -u v2ray -f
 ```
 
-Then test the client connection and observe whether the server receives the connection and what errors appear.
+Then perform a client connection test. This allows you to observe whether the server receives the connection and what errors occur.
 
 ---
 
-## 9. Checking Whether Port 10086 Is Actually Listening
+## 9. Checking Whether Port 1080 Is Actually Listening
 
-A V2Ray service showing `active (running)` does not necessarily mean the expected port is listening, so verify it at the Linux system level.
+A V2Ray service showing `active (running)` does not necessarily mean that the port is listening correctly, so you should also verify it at the Linux system level.
 
-执行：
+Run:
 
 ```bash
-sudo ss -lntp | grep 10086
+sudo ss -lntp | grep 1080
 ```
 
 If you see something like:
 
 ```text
-LISTEN 0 4096 0.0.0.0:10086 0.0.0.0:*
+LISTEN 0 4096 0.0.0.0:1080 0.0.0.0:*
 ```
 
-the system is listening on TCP 10086.
+This indicates that the system is listening on TCP port 1080.
 
-If there is no output, no process is currently listening on that port.At that point, check the V2Ray service status and configuration rather than continuing to change the AWS Security Group.
+If there is no output, no program is currently listening on this port. At this point, check the V2Ray service status and configuration file again instead of continuing to modify the AWS security group.
 
-This is important because a network connection passes through multiple layers:
+This is important because a network connection actually passes through multiple layers:
 
 ```text
-客户端
+client
    ↓
-互联网
+Internet
    ↓
-AWS Security Group
+AWS security group
    ↓
 EC2 Ubuntu
    ↓
-Ubuntu 防火墙
+Ubuntu firewall
    ↓
-10086 端口
+1080 port
    ↓
 V2Ray
 ```
 
-任何一层出现问题，都可能导致客户端连接失败。
-
+A problem at any layer can cause the client connection to fail.
 ---
 
-## 10. Configuring the AWS Security Group
+## 10. Configuring the AWS security group
 
-Now that the server is configured and V2Ray is confirmed to be listening on `10086`, make sure AWS allows external connections to this port.
+Now that the server-side configuration is complete and V2Ray is confirmed to be listening on `1080`, you need to make sure AWS allows external connections to this port.
 
-Open the AWS EC2 console, find the corresponding instance, and open its Security Group.在 `Inbound rules` 中确认 SSH 的 TCP 22 端口以及 V2Ray 使用的 TCP 10086 端口符合你的实际需求。
+Open the AWS EC2 console, find the corresponding instance, and open its security group. Under `Inbound rules`, confirm that SSH TCP port 22 and the TCP 1080 port used by V2Ray are configured according to your actual needs.
 
-例如：
+For example:
 
 ```text
 Type: SSH
 Protocol: TCP
 Port: 22
-Source: 你的管理 IP
+Source: your management IP
 ```
 
-以及：
+And:
 
 ```text
 Type: Custom TCP
 Protocol: TCP
-Port: 10086
-Source: 根据你的实际访问需求设置
+Port: 1080
+Source: Set it according to your actual access needs
 ```
 
-If the V2Ray service needs to be reachable from the public Internet, the service port must allow the required public sources; if it is used only from a specific network environment, you can restrict the source further.
+If the V2Ray service needs to be accessed from the public Internet, the corresponding service port must allow the appropriate public sources. If it is only used from a specific network environment, you can restrict the sources further.
 
-Again, **do not open port 7890 in AWS simply because the client software uses 7890.**假设你的 Windows 电脑上 V2rayN 使用 `127.0.0.1:7890` 作为本地代理端口，那么它表示：
+Again, **do not open port 7890 in AWS just because the client software uses 7890.** Suppose v2rayN on your Windows computer uses `127.0.0.1:7890` as its local proxy port. This means:
 
 ```text
-你的电脑
+Your computer
    │
    └── 127.0.0.1:7890
 ```
 
-Here, `127.0.0.1` refers to the local computer itself, and 7890 is the client's local listening port.It does not directly correspond to the V2Ray server port on AWS EC2.
+Here, `127.0.0.1` refers to the current computer itself, and 7890 is the client's local listening port. It has no direct port-to-port relationship with the V2Ray service on AWS EC2.
 
-If V2Ray on EC2 is configured to use `10086`, the AWS Security Group should concern itself with TCP 10086, not TCP 7890.因此原先很多教程中同时开放 `10086` 和 `7890` 的做法并不是必要的，尤其不要为了客户端本地端口而把 7890 暴露给整个互联网。
+If V2Ray on EC2 is configured to use `1080`, the AWS security group should concern itself with TCP 1080, not TCP 7890. Therefore, the practice found in many older tutorials of opening both `1080` and `7890` is unnecessary. In particular, do not expose 7890 to the entire Internet just because it is a local client port.
 
 ---
 
 ## 11. Ubuntu UFW Firewall
 
-除了 AWS Security Group 以外，Ubuntu can also have its own firewall.常见工具是 UFW，可以使用 `sudo ufw status` 查看当前状态。
+In addition to the AWS security group, Ubuntu itself can also have a firewall configured. A common tool is UFW, whose current status can be checked with `sudo ufw status`.
 
-If you plan to enable UFW, allow SSH first; otherwise, you can easily lock yourself out of the server after enabling the firewall.可以先执行：
+If you plan to enable UFW, allow SSH first. Otherwise, enabling the firewall can lock you out of the server. Run:
 
 ```bash
 sudo ufw allow 22/tcp
-sudo ufw allow 10086/tcp
+sudo ufw allow 1080/tcp
 ```
 
-然后再启用：
+Then enable it:
 
 ```bash
 sudo ufw enable
 ```
 
-最后检查：
+Finally, check:
 
 ```bash
 sudo ufw status
 ```
 
-If the corresponding ports are shown as allowed, UFW is operating according to the current configuration.
+If the corresponding ports are shown as allowed, UFW is working according to the current configuration.
 
-需要理解的是，AWS Security Group 和 UFW 是两个不同层级的防火墙：
+It is important to understand that the AWS security group and UFW are firewalls at different layers:
 
 ```text
 Internet
     ↓
-AWS Security Group
+AWS security group
     ↓
 EC2
     ↓
@@ -396,153 +396,153 @@ Ubuntu UFW
 V2Ray
 ```
 
-因此即使 AWS Security Group 已经放行 10086，如果 Ubuntu UFW 阻止了它，连接依然可能失败；反过来也一样。如果 AWS 没有放行，即使 Ubuntu UFW 允许，也无法从公网正常访问。
+So even if the AWS security group has allowed port 1080, if Ubuntu UFW blocks it, the connection will still fail; and vice versa. If AWS does not allow it, access will still fail even if Ubuntu UFW permits the connection.
 
 ---
 
-## 12. Configuring the V2rayN Client
+## 12. Configuring the v2rayN Client
 
-Once the server side is complete, configure the corresponding server in the Windows client.Menu names may vary between V2rayN versions, but the core parameters are generally the same.When adding a server, enter its public IP, port, UUID, transport method, and WebSocket Path.
+Once the server side is complete, you can configure the corresponding server in the Windows client. Menu names may vary between v2rayN versions, but the core parameters are essentially the same. When adding a server, enter the server's public IP, port, UUID, transport method, and WebSocket path.
 
-假设服务器信息如下：
+Suppose the server information is as follows:
 
 ```text
 Address:
-你的 AWS 公网 IPv4
+your AWS public IPv4
 
 Port:
-10086
+1080
 
 Protocol:
 VMess
 
 UUID:
-服务器生成的 UUID
+UUID generated by the server
 
-Network:
+network:
 WebSocket / ws
 
-Path:
+path:
 /your-path
 ```
 
-Set Address to the EC2 instance's current public IPv4 address, Port to `10086` to match the server configuration, UUID to exactly the same UUID in the server configuration, Network to WebSocket, and Path to `/your-path`.
+Enter the current AWS EC2 public IPv4 address in Address. Port must match `1080` in the server configuration, UUID must exactly match the UUID in the server configuration file, network should be set to WebSocket, and path should be `/your-path`.
 
-客户端与服务器之间可以简单理解为：
+The relationship between the client and server can be understood simply as:
 
 ```text
-服务器：
+Server:
 
-Port = 10086
+Port = 1080
 UUID = A
-Network = ws
-Path = /your-path
+network = ws
+path = /your-path
 
 
-客户端：
+Client:
 
-Port = 10086
+Port = 1080
 UUID = A
-Network = ws
-Path = /your-path
+network = ws
+path = /your-path
 ```
 
-In other words, the address, port, UUID, transport method, and Path must match between the two sides.
+In other words, the address, port, UUID, transport method, path, and other connection parameters must correspond correctly.
 
 ---
 
-## 13. Cannot Connect? Troubleshoot in This Order
+## 13. Troubleshooting: Check the Layers in Order
 
-If the client cannot connect, do not immediately reinstall V2Ray.When a network service has problems, the most effective approach is to troubleshoot layer by layer from the outside inward.
+If the client cannot connect, do not immediately reinstall V2Ray. Troubleshoot the stack layer by layer, starting with the external network and moving inward to the service and client configuration.
 
-First, confirm in the AWS console that the EC2 instance is still `Running`, then verify that the current Public IPv4 is correct.如果实例曾经停止并重新启动，而没有配置固定公网 IP，那么公网 IP 可能已经发生变化，客户端继续使用旧 IP 就会直接连接失败。
+First, open the AWS console and confirm that the EC2 instance is still `Running`, then verify that the current public IPv4 is correct. If the instance was stopped and started again without a fixed public IP, the public IP may have changed, and the client will fail immediately if it continues using the old IP.
 
-Then check the AWS Security Group and confirm that TCP 10086 is allowed.If UFW is enabled, run `sudo ufw status` and make sure the local Ubuntu firewall is not blocking the port.
+Then check the AWS security group and confirm that TCP 1080 is allowed. If UFW is enabled, also run `sudo ufw status` to confirm that the local Ubuntu firewall is not blocking the port.
 
-Next, log in to the server and run `sudo systemctl status v2ray` to confirm the service status.如果服务没有运行，则执行 `sudo journalctl -u v2ray --no-pager -n 100` 查看日志。
+Next, log in to the server and run `sudo systemctl status v2ray` to check the service status. If the service is not running, use `sudo journalctl -u v2ray --no-pager -n 100` to view the logs.
 
-then run `sudo ss -lntp | grep 10086`，确认 10086 是否真正处于监听状态。如果没有监听，那么问题通常发生在 V2Ray 配置或者服务启动阶段；如果已经监听，那么继续检查 AWS 网络层以及客户端配置。
+Then run `sudo ss -lntp | grep 1080` to confirm that 1080 is actually listening. If it is not listening, the problem is usually in the V2Ray configuration or service startup stage. If it is listening, continue checking the AWS network layer and client configuration.
 
-Finally, check the client parameters, including the server public IP, port, UUID, WebSocket, and Path.UUID and Path are especially prone to copy-and-paste errors that can cause connection failures.
+Finally, check the client parameters, including the server's public IP, port, UUID, WebSocket settings, and path. UUID and path in particular can easily cause connection failures when copied incorrectly.
 
-可以按照下面这个顺序排查：
+You can troubleshoot in the following order:
 
 ```text
-EC2 是否 Running
+Is the EC2 running
         ↓
-公网 IP 是否正确
+Is the public IP correct
         ↓
-AWS Security Group 是否允许
+Does the AWS security group allow it
         ↓
-Ubuntu UFW 是否允许
+Does Ubuntu UFW allow it
         ↓
-V2Ray 是否运行
+Is V2Ray running
         ↓
-10086 是否监听
+Is 1080 listening
         ↓
-UUID 是否一致
+Are the UUIDs the same
         ↓
-WebSocket 是否一致
+Is the WebSocket configuration consistent
         ↓
-Path 是否一致
+Are the paths the same
         ↓
-客户端再次测试
+Client testing again
 ```
 
-这样排查通常比不断修改配置更加有效。
+This approach is usually more effective than repeatedly changing configuration values.
 
 ---
 
-## 14. Common Errors and Their Causes
+## 14. Common Error Analysis
 
-If the client reports `Connection refused`, it usually means the destination server is reachable but the target port is not accepting connections.At this point, check whether V2Ray is running and whether `10086` is listening.If you get `Connection timeout`, focus on the public IP, AWS Security Group, Ubuntu firewall, and network path.
+If the client reports `Connection refused`, it usually means the target server is reachable but the corresponding port is not accepting connections normally. Focus on whether V2Ray is running and whether `1080` is listening. If you see `Connection timeout`, pay more attention to the public IP, AWS security group, Ubuntu firewall, and network path.
 
-If V2Ray is running normally on the server but the client reports an authentication error, check the UUID first.客户端的 UUID 必须与服务器配置文件中的 `id` 完全一致。
+If V2Ray is running normally on the server but the client reports an authentication-related error, focus on the UUID. The client's UUID must exactly match the `id` in the server configuration file.
 
-If you use WebSocket, the client and server Path must also match.例如服务器使用 `/your-path`，客户端却填写 `/v2ray`，就会出现连接问题。
+When using WebSocket, the client and server path must also match. For example, if the server uses `/your-path` while the client enters `/v2ray`, the connection will fail.
 
-If V2Ray fails to start, check:
+If the V2Ray service fails to start, check the following first:
 
 ```bash
 sudo journalctl -u v2ray --no-pager -n 100
 ```
 
-If the logs show JSON, configuration-field, or port-related errors, return to `/usr/local/etc/v2ray/config.json` and inspect it.Do not change a dozen parameters at once. Ideally, change one thing at a time, validate the configuration, restart the service, and observe the logs.
+If the logs contain errors related to JSON, configuration fields, or ports, return to `/usr/local/etc/v2ray/config.json` and inspect it. Do not change a dozen parameters at once. It is better to change one thing at a time, then recheck the configuration, restart the service, and observe the logs.
 
 ---
 
 ## 15. Security Recommendations
 
-If you are only learning and experimenting temporarily, the basic configuration above can help you understand the relationship between EC2, Ubuntu, V2Ray, ports, and the client.If you plan to operate the server long term, however, you should consider additional security measures.
+If you are only learning and experimenting temporarily, the basic configuration above can help you understand the relationship between EC2, Ubuntu, V2Ray, ports, and clients. However, if you plan to run the server long term, you should consider security in greater depth.
 
-First, do not expose your SSH private key.`.pem` 文件一旦被别人获得，就可能造成严重的服务器安全问题。Second, do not casually publish authentication information such as the UUID and server address.Third, restrict SSH access by source whenever possible, and do not expose ports that have no practical purpose.
+First, never expose your SSH private key. If someone obtains the `.pem` file, it can create a serious server security risk. Second, do not casually publish authentication information such as the UUID and server address. Third, restrict access to the SSH port as much as possible and do not open ports that have no practical purpose.
 
-On the system side, periodically run `sudo apt update && sudo apt upgrade -y` to update Ubuntu packages, and regularly check the V2Ray service status, disk space, and system logs.For long-running servers, also monitor your AWS billing and resource usage so that forgotten test instances, storage, public IPs, or other resources do not generate unexpected charges.
+On the system side, regularly run `sudo apt update && sudo apt upgrade -y` to update Ubuntu packages, and periodically check the V2Ray service status, disk space, and system logs. Once the server has been running for a while, also monitor AWS billing and resource usage to avoid unexpected charges from forgotten test instances, disks, public IPs, or other resources.
 
-For a long-term deployment, you can also build a more complete network-service architecture using a domain, TLS, Nginx, or Caddy.不过这已经属于进阶内容，不建议第一次部署的时候一次性把所有组件全部加入，否则出现问题之后很难判断具体是哪一层出现了故障。
+If the server is intended for long-term use, you can further build a more complete network service architecture using a domain, TLS, Nginx, or Caddy. However, this is advanced material. It is not recommended to add every component during your first deployment, because once something goes wrong, it becomes much harder to determine which layer is responsible.
 
 ---
 
-## 16. Domains, TLS, and Reverse Proxying: Advanced Topics
+## 16. Domains, TLS, and Reverse Proxy: Advanced Topics
 
-基础架构通常可以理解为：
+The basic architecture can be understood as:
 
 ```text
-客户端
+client
    ↓
-公网 IP
+public IP
    ↓
 EC2
    ↓
 V2Ray
 ```
 
-如果继续升级，可以变成：
+With further upgrades, it can become:
 
 ```text
-客户端
+client
    ↓
-域名
+domain name
    ↓
 DNS
    ↓
@@ -557,95 +557,95 @@ WebSocket
 V2Ray
 ```
 
-This architecture involves additional concepts such as DNS resolution, domain management, TLS certificates, HTTPS, reverse proxying, and Web server configuration.These are not only V2Ray concepts; they are also common technologies used to deploy websites and API services.
+This architecture involves additional knowledge, including DNS resolution, domain management, TLS certificates, HTTPS, reverse proxies, and web server configuration. These are not only V2Ray concepts; they are also common technologies used when deploying websites and API services.
 
-例如以后你想在同一台 EC2 上部署个人博客、API、Web 服务和其他应用，就可以进一步学习 Nginx、Caddy、Docker、Cloudflare DNS 等技术。这样你掌握的就不再只是“如何安装一个 V2Ray”，而是一套可以迁移到个人网站、API 服务、Docker 项目以及其他云服务器应用中的完整部署思路。
+For example, if you later want to deploy a personal blog, API, Web service, and other applications on the same EC2 instance, you can continue learning technologies such as Nginx, Caddy, Docker, and Cloudflare DNS. You will then have learned more than just “how to install V2Ray”; you will have developed a complete deployment approach that can be transferred to personal websites, API services, Docker projects, and other cloud-server applications.
 
 ---
 
 ## 17. Common Linux and V2Ray Commands
 
-When managing the server later, you do not need to search for these commands every time. The following basic commands can serve as a day-to-day reference.
+When managing the server later, you do not need to search for commands every time. The following basic commands can be used as a daily maintenance reference.
 
-更新系统：
+Update the system:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
 ```
 
-查看 Ubuntu 版本：
+Check the Ubuntu version:
 
 ```bash
 lsb_release -a
 ```
 
-查看内存：
+Check memory:
 
 ```bash
 free -h
 ```
 
-查看磁盘：
+Check disk space:
 
 ```bash
 df -h
 ```
 
-查看端口：
+Check ports:
 
 ```bash
 sudo ss -lntp
 ```
 
-查看 V2Ray 状态：
+Check V2Ray status:
 
 ```bash
 sudo systemctl status v2ray
 ```
 
-启动 V2Ray：
+Start V2Ray:
 
 ```bash
 sudo systemctl start v2ray
 ```
 
-停止 V2Ray：
+Stop V2Ray:
 
 ```bash
 sudo systemctl stop v2ray
 ```
 
-重启 V2Ray：
+Restart V2Ray:
 
 ```bash
 sudo systemctl restart v2ray
 ```
 
-设置开机启动：
+Enable startup on boot:
 
 ```bash
 sudo systemctl enable v2ray
 ```
 
-查看最近日志：
+View recent logs:
 
 ```bash
 sudo journalctl -u v2ray --no-pager -n 100
 ```
 
-实时查看日志：
+View logs in real time:
 
 ```bash
 sudo journalctl -u v2ray -f
 ```
 
-查看指定端口：
+Check a specific port:
 
 ```bash
-sudo ss -lntp | grep 10086
+sudo ss -lntp | grep 1080
 ```
 
-查看 UFW：
+Check UFW:
 
 ```bash
 sudo ufw status
@@ -655,66 +655,66 @@ sudo ufw status
 
 ## 18. Complete Deployment Checklist
 
-If you have completed the guide, use the following checklist for a final review:
+If you have completed the procedure in this article, use the following checklist for a final review:
 
 ```text
-AWS：
+AWS:
 
-[✓] AWS 账号正常
-[✓] EC2 实例已经创建
-[✓] Ubuntu Server 正常运行
-[✓] SSH Key 已保存
-[✓] Public IPv4 已确认
-[✓] Security Group 已配置
-
-
-SSH：
-
-[✓] 可以使用 SSH 登录
-[✓] 使用 ubuntu 用户
-[✓] PEM 私钥路径正确
+[✓] AWS account is working
+[✓] EC2 instance has been created
+[✓] Ubuntu Server is running normally
+[✓] SSH key has been saved
+[✓] public IPv4 has been confirmed
+[✓] security group has been configured
 
 
-Ubuntu：
+SSH:
 
-[✓] 系统已经更新
-[✓] curl 已安装
-[✓] UFW 配置正确（如果启用）
-
-
-V2Ray：
-
-[✓] V2Ray 已安装
-[✓] UUID 已生成
-[✓] config.json 已修改
-[✓] JSON 格式正确
-[✓] V2Ray 服务正常运行
-[✓] 10086 正在监听
+[✓] SSH login works
+[✓] Using the `ubuntu` user
+[✓] PEM private-key path is correct
 
 
-客户端：
+Ubuntu:
 
-[✓] AWS 公网 IP 正确
-[✓] Port = 10086
-[✓] UUID 与服务器一致
-[✓] Network = WebSocket
-[✓] Path = /your-path
+[✓] System has been updated
+[✓] `curl` is installed
+[✓] UFW is configured correctly (if enabled)
 
 
-网络：
+V2Ray:
 
-[✓] AWS Security Group 允许服务端口
-[✓] Ubuntu 防火墙允许服务端口
-[✓] SSH 可以正常使用
+[✓] V2Ray has been installed
+[✓] UUID has been generated
+[✓] `config.json` has been modified
+[✓] JSON format is valid
+[✓] V2Ray service is running normally
+[✓] Port 1080 is listening
+
+
+Client:
+
+[✓] AWS public IP is correct
+[✓] Port = 1080
+[✓] UUID matches the server
+[✓] network = WebSocket
+[✓] path = /your-path
+
+
+network:
+
+[✓] AWS security group allows the service port
+[✓] Ubuntu firewall allows the service port
+[✓] SSH works normally
 ```
 
 ---
 
 ## Conclusion
 
-From creating an AWS EC2 server to getting the client connected successfully, the key skill is not memorizing a single software-installation command but understanding the overall process of deploying and managing a cloud server.首先通过 AWS EC2 获得一台云服务器，然后使用 SSH 远程进入 Ubuntu；接着更新系统并安装 V2Ray，再通过 UUID、端口、协议和传输方式配置服务；随后通过 AWS Security Group 和 Ubuntu 防火墙控制网络访问，最后在客户端填写与服务器对应的参数。
+From creating an AWS EC2 server to successfully connecting the client, what you really need to understand is not a single software installation command, but an entire cloud-server deployment mindset. First, obtain a cloud server through AWS EC2 and remotely access Ubuntu using SSH. Then update the system and install V2Ray, configure the service using the UUID, port, protocol, and transport method, control network access through the AWS security group and Ubuntu firewall, and finally enter the corresponding server parameters in the client.
 
-The entire process can be summarized as:
+The entire process can be condensed into:
 
 ```text
 AWS EC2
@@ -729,13 +729,13 @@ config.json
    ↓
 UUID + Port + Protocol + WebSocket
    ↓
-AWS Security Group
+AWS security group
    ↓
-客户端
+Client
 ```
 
-One of the most important concepts to understand is the idea of a “port.”The server-side V2Ray `10086` is a listening port on the server, while ports such as `7890` used by client software are usually local proxy ports. They are not the same thing.Once you understand the relationship between server ports, client ports, the AWS Security Group, and Ubuntu UFW, many seemingly complicated network problems become much easier to troubleshoot.
+The concept of “ports” is particularly important. The server-side V2Ray `1080` is a server listening port, while ports such as `7890` used by client software are usually local proxy ports. They are not the same thing. Once you understand the relationship between server ports, client ports, the AWS security group, and Ubuntu UFW, many seemingly complicated network problems become much easier to troubleshoot.
 
-如果以后准备继续深入，可以在这个基础上学习域名、DNS、TLS、Nginx、Caddy、Docker、Cloudflare 以及 Linux 服务器安全等内容。这样你掌握的就不再只是“如何安装一个 V2Ray”，而是一套可以迁移到个人网站、API 服务、Docker 项目以及其他云服务器应用中的完整部署思路。
+If you want to go further, you can build on this foundation by learning about domains, DNS, TLS, Nginx, Caddy, Docker, Cloudflare, and Linux server security. You will then have learned more than just “how to install V2Ray”; you will have a complete deployment approach that can be applied to personal websites, API services, Docker projects, and other cloud-server applications.
 
-Finally, remember that the use of cloud servers and network services should comply with applicable local laws, AWS Terms of Service, and other relevant rules. This guide is primarily intended for learning about AWS EC2, Ubuntu, Linux service management, and network configuration.
+Finally, remember that the use of cloud servers and network services should comply with the laws and regulations of your jurisdiction, the AWS Terms of Service, and other applicable rules. This article is primarily intended for learning about AWS EC2, Ubuntu, Linux service management, and network configuration.
