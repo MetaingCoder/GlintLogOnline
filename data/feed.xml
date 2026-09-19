@@ -2,7 +2,7 @@
 <rss version="2.0">
   <channel>
     <title>TeoGeek</title>
-    <link>https://blog.kusteo.com/</link>
+    <link>https://your-domain.example/</link>
     <description>A minimal personal blog about technology, experiments, notes, and the web.</description>
     <language>en</language>
     <lastBuildDate>Fri, 18 Sep 2026 00:00:00 GMT</lastBuildDate>
