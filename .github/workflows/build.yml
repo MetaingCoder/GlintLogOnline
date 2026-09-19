@@ -11,7 +11,7 @@ permissions:
 
 env:
   # TODO: Replace this with the real canonical site URL before publishing.
-  SITE_URL: https://your-domain.example
+  SITE_URL: https://blog.kusteo.com
 
 jobs:
   build:
