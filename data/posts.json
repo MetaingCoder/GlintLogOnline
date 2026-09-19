@@ -14,16 +14,6 @@
     "summary": "A concise guide to deploying and configuring V2Ray on an AWS EC2 Ubuntu server."
   },
   {
-    "slug": "hello-world",
-    "title": "Hello World",
-    "date": "2026-01-15",
-    "tags": [
-      "life",
-      "note"
-    ],
-    "summary": "A short introduction to this blog and what I plan to write here."
-  },
-  {
     "slug": "second-post",
     "title": "Building a Small Static Blog",
     "date": "2026-01-10",

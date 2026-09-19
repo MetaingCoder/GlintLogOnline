@@ -432,20 +432,6 @@ Client</code></pre>
       <guid isPermaLink="true">https://blog.kusteo.com/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</guid>
     </item>
     <item>
-      <title>Hello World</title>
-      <link>https://blog.kusteo.com/post.html?slug=hello-world</link>
-      <description>A short introduction to this blog and what I plan to write here.</description>
-      <content:encoded><![CDATA[<h1>Hello World</h1>
-<p>This is the first note on the site. The blog is intentionally simple: Markdown files live in the repository, the browser loads the selected article, and the page renders it on the client.</p>
-<h2>Why a static blog?</h2>
-<p>A static architecture keeps deployment and maintenance small. There is no application server, database, or runtime API involved in serving a post.</p>
-<pre><code class="language-javascript">const message = &quot;Hello, world&quot;;
-console.log(message);</code></pre>
-<p>That simplicity is useful when the goal is to spend more time writing and less time maintaining infrastructure.</p>]]></content:encoded>
-      <pubDate>Thu, 15 Jan 2026 00:00:00 GMT</pubDate>
-      <guid isPermaLink="true">https://blog.kusteo.com/post.html?slug=hello-world</guid>
-    </item>
-    <item>
       <title>Building a Small Static Blog</title>
       <link>https://blog.kusteo.com/post.html?slug=second-post</link>
       <description>The design principles behind a browser-rendered Markdown blog with a tiny deployment surface.</description>
