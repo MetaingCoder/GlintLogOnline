@@ -1,13 +1,17 @@
 [
   {
     "slug": "aws-ec2-v2ray-ubuntu-deployment-guide-en",
-    "title": "Setting Up a Dedicated V2Ray Node",
-    "date": "2026-09-18",
+    "title": "AWS EC2 + Ubuntu: Deploying V2Ray",
+    "date": "2026-9-16",
     "tags": [
-      "NODE",
-      "V2Ray"
+      "AWS",
+      "EC2",
+      "Ubuntu",
+      "V2Ray",
+      "Linux",
+      "Networking"
     ],
-    "summary": "A short introduction to this blog and what I plan to write here."
+    "summary": ""
   },
   {
     "slug": "hello-world",
