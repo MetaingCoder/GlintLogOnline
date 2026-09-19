@@ -12,15 +12,5 @@
       "Networking"
     ],
     "summary": "A concise guide to deploying and configuring V2Ray on an AWS EC2 Ubuntu server."
-  },
-  {
-    "slug": "second-post",
-    "title": "Building a Small Static Blog",
-    "date": "2026-01-10",
-    "tags": [
-      "web",
-      "development"
-    ],
-    "summary": "The design principles behind a browser-rendered Markdown blog with a tiny deployment surface."
   }
 ]
