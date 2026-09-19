@@ -5,12 +5,12 @@
     <link>https://your-domain.example/</link>
     <description>A minimal personal blog about technology, experiments, notes, and the web.</description>
     <language>en</language>
-    <lastBuildDate>Wed, 16 Sep 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Sat, 19 Sep 2026 00:00:00 GMT</lastBuildDate>
     <item>
       <title>AWS EC2 + Ubuntu: Deploying V2Ray</title>
       <link>https://your-domain.example/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</link>
-      <description></description>
-      <pubDate>Wed, 16 Sep 2026 00:00:00 GMT</pubDate>
+      <description>A concise guide to deploying and configuring V2Ray on an AWS EC2 Ubuntu server.</description>
+      <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
       <guid isPermaLink="true">https://your-domain.example/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</guid>
     </item>
     <item>

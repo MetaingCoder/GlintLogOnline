@@ -2,7 +2,7 @@
   {
     "slug": "aws-ec2-v2ray-ubuntu-deployment-guide-en",
     "title": "AWS EC2 + Ubuntu: Deploying V2Ray",
-    "date": "2026-9-16",
+    "date": "2026-09-19",
     "tags": [
       "AWS",
       "EC2",
@@ -11,7 +11,7 @@
       "Linux",
       "Networking"
     ],
-    "summary": ""
+    "summary": "A concise guide to deploying and configuring V2Ray on an AWS EC2 Ubuntu server."
   },
   {
     "slug": "hello-world",
