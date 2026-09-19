@@ -10,30 +10,24 @@ permissions:
   contents: write
 
 env:
-  # TODO: Replace this with the real canonical site URL before publishing.
-  SITE_URL: https://blog.kusteo.com
+  # Canonical public URL. Keep this without a trailing slash.
+  SITE_URL: https://teogeek.pages.dev
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout the repository using the built-in GITHUB_TOKEN.
-      # actions/checkout@v4 configures git authentication for the later push.
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Step 2: Install Node.js. No npm packages are required for this build;
-      # the scripts use only Node's built-in filesystem and path modules.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      # Step 3A: Read every Markdown file, parse the small documented
-      # frontmatter subset, skip draft:true, and generate data/posts.json.
       - name: Generate posts.json
         shell: bash
         run: |
@@ -97,8 +91,8 @@ jobs:
           console.log(`Generated posts.json with ${posts.length} published posts.`);
           NODE
 
-      # Step 3B: Build an RSS 2.0 feed from the same published index.
-      # XML text is escaped so &, <, >, quotes, and apostrophes cannot break the feed.
+      # Generate a full-text RSS feed. This is the only functional change needed
+      # for RSS readers that show "Loading article..." when opening the article page.
       - name: Generate feed.xml
         shell: bash
         run: |
@@ -108,9 +102,10 @@ jobs:
 
           const SITE_URL = process.env.SITE_URL.replace(/\/$/, '');
           const config = JSON.parse(await fs.readFile(path.resolve('config.json'), 'utf8'));
-          const SITE_NAME = String(config.siteName || 'Site Name');
+          const SITE_NAME = String(config.siteName || 'TeoGeek');
           const SITE_DESCRIPTION = String(config.siteDescription || '');
           const posts = JSON.parse(await fs.readFile(path.resolve('data/posts.json'), 'utf8'));
+          const POSTS_DIR = path.resolve('content/posts');
 
           const escapeXml = value => String(value ?? '')
             .replaceAll('&', '&amp;')
@@ -119,40 +114,164 @@ jobs:
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&apos;');
 
-          const items = posts.map(post => {
+          const escapeHtml = value => String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+
+          function inlineMarkdown(value) {
+            let text = escapeHtml(value);
+            text = text.replace(/!\[([^\]]*)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g, (_, alt, url, title) =>
+              `<img src="${escapeHtml(url)}" alt="${alt}"${title ? ` title="${escapeHtml(title)}"` : ''} loading="lazy">`);
+            text = text.replace(/\[([^\]]+)\]\(([^\s)]+)(?:\s+"([^"]*)")?\)/g, (_, label, url, title) =>
+              `<a href="${escapeHtml(url)}"${title ? ` title="${escapeHtml(title)}"` : ''}>${label}</a>`);
+            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+            text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            text = text.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+            text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+            text = text.replace(/_([^_]+)_/g, '<em>$1</em>');
+            return text;
+          }
+
+          function markdownToHtml(markdown) {
+            const normalized = markdown.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+            const body = normalized.replace(/^---\n[\s\S]*?\n---\n?/, '');
+            const lines = body.split('\n');
+            const out = [];
+            let paragraph = [];
+            let listType = null;
+            let listItems = [];
+            let quote = [];
+            let code = null;
+
+            const flushParagraph = () => {
+              if (!paragraph.length) return;
+              out.push(`<p>${inlineMarkdown(paragraph.join(' '))}</p>`);
+              paragraph = [];
+            };
+            const flushList = () => {
+              if (!listType) return;
+              const tag = listType === 'ol' ? 'ol' : 'ul';
+              out.push(`<${tag}>${listItems.map(item => `<li>${inlineMarkdown(item)}</li>`).join('')}</${tag}>`);
+              listType = null;
+              listItems = [];
+            };
+            const flushQuote = () => {
+              if (!quote.length) return;
+              out.push(`<blockquote><p>${inlineMarkdown(quote.join(' '))}</p></blockquote>`);
+              quote = [];
+            };
+
+            for (const line of lines) {
+              if (code) {
+                if (/^```/.test(line)) {
+                  out.push(`<pre><code${code.lang ? ` class="language-${escapeHtml(code.lang)}"` : ''}>${escapeHtml(code.lines.join('\n'))}</code></pre>`);
+                  code = null;
+                } else {
+                  code.lines.push(line);
+                }
+                continue;
+              }
+
+              const fence = line.match(/^```\s*([\w+-]*)\s*$/);
+              if (fence) {
+                flushParagraph();
+                flushList();
+                flushQuote();
+                code = { lang: fence[1] || '', lines: [] };
+                continue;
+              }
+
+              if (!line.trim()) {
+                flushParagraph();
+                flushList();
+                flushQuote();
+                continue;
+              }
+
+              const heading = line.match(/^(#{1,6})\s+(.+?)\s*#*$/);
+              if (heading) {
+                flushParagraph();
+                flushList();
+                flushQuote();
+                const level = heading[1].length;
+                out.push(`<h${level}>${inlineMarkdown(heading[2])}</h${level}>`);
+                continue;
+              }
+
+              const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
+              const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+              if (bullet || ordered) {
+                flushParagraph();
+                flushQuote();
+                const type = ordered ? 'ol' : 'ul';
+                if (listType && listType !== type) flushList();
+                listType = type;
+                listItems.push((bullet || ordered)[1]);
+                continue;
+              }
+
+              const blockquote = line.match(/^\s*>\s?(.*)$/);
+              if (blockquote) {
+                flushParagraph();
+                flushList();
+                quote.push(blockquote[1]);
+                continue;
+              }
+
+              flushList();
+              flushQuote();
+              paragraph.push(line.trim());
+            }
+
+            if (code) {
+              out.push(`<pre><code>${escapeHtml(code.lines.join('\n'))}</code></pre>`);
+            }
+            flushParagraph();
+            flushList();
+            flushQuote();
+            return out.join('\n');
+          }
+
+          const items = [];
+          for (const post of posts) {
+            const source = await fs.readFile(path.join(POSTS_DIR, `${post.slug}.md`), 'utf8');
+            const contentHtml = markdownToHtml(source);
             const link = `${SITE_URL}/post.html?slug=${encodeURIComponent(post.slug)}`;
-            return [
+            items.push([
               '    <item>',
               `      <title>${escapeXml(post.title)}</title>`,
               `      <link>${escapeXml(link)}</link>`,
-              `      <description>${escapeXml(post.summary)}</description>`,
+              `      <description>${escapeXml(post.summary || '')}</description>`,
+              `      <content:encoded><![CDATA[${contentHtml.replaceAll(']]>', ']]]]><![CDATA[>')}]]></content:encoded>`,
               `      <pubDate>${escapeXml(new Date(post.date).toUTCString())}</pubDate>`,
               `      <guid isPermaLink="true">${escapeXml(link)}</guid>`,
               '    </item>',
-            ].join('\n');
-          }).join('\n');
+            ].join('\n'));
+          }
 
           const lastBuildDate = posts.length ? new Date(posts[0].date).toUTCString() : new Date().toUTCString();
           const xml = [
             '<?xml version="1.0" encoding="UTF-8"?>',
-            '<rss version="2.0">',
+            '<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">',
             '  <channel>',
             `    <title>${escapeXml(SITE_NAME)}</title>`,
             `    <link>${escapeXml(SITE_URL + '/')}</link>`,
             `    <description>${escapeXml(SITE_DESCRIPTION)}</description>`,
             '    <language>en</language>',
             `    <lastBuildDate>${escapeXml(lastBuildDate)}</lastBuildDate>`,
-            items,
+            items.join('\n'),
             '  </channel>',
             '</rss>',
             '',
           ].join('\n');
 
           await fs.writeFile(path.resolve('data/feed.xml'), xml, 'utf8');
-          console.log(`Generated feed.xml with ${posts.length} published items.`);
+          console.log(`Generated feed.xml with ${posts.length} published items and full content.`);
           NODE
 
-      # Step 3C: Build a sitemap for the static pages and published articles.
       - name: Generate sitemap.xml
         shell: bash
         run: |
@@ -182,9 +301,6 @@ jobs:
           console.log(`Generated sitemap.xml with ${urls.length} URLs.`);
           NODE
 
-      # Step 4: Commit only generated outputs and push with GITHUB_TOKEN.
-      # Do not use a PAT. GitHub documents that normal push events produced by
-      # GITHUB_TOKEN do not start a second workflow run, avoiding recursion.
       - name: Commit generated data
         shell: bash
         run: |
