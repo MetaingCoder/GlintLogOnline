@@ -11,7 +11,7 @@ permissions:
 
 env:
   # Canonical public URL. Keep this without a trailing slash.
-  SITE_URL: https://teogeek.pages.dev
+  SITE_URL: https://blog.kusteo.com
 
 jobs:
   build:
