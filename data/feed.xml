@@ -2,13 +2,13 @@
 <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
   <channel>
     <title>TeoGeek</title>
-    <link>https://teogeek.pages.dev/</link>
+    <link>https://blog.kusteo.com/</link>
     <description>A minimal personal blog about technology, experiments, notes, and the web.</description>
     <language>en</language>
     <lastBuildDate>Sat, 19 Sep 2026 00:00:00 GMT</lastBuildDate>
     <item>
       <title>AWS EC2 + Ubuntu: Deploying V2Ray</title>
-      <link>https://teogeek.pages.dev/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</link>
+      <link>https://blog.kusteo.com/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</link>
       <description>A concise guide to deploying and configuring V2Ray on an AWS EC2 Ubuntu server.</description>
       <content:encoded><![CDATA[<h1>AWS EC2 + Ubuntu: A Practical Guide to Deploying V2Ray</h1>
 <h2>Introduction</h2>
@@ -429,11 +429,11 @@ Client</code></pre>
 <p>If you want to go further, you can build on this foundation by learning about domains, DNS, TLS, Nginx, Caddy, Docker, Cloudflare, and Linux server security. You will then have learned more than just “how to install V2Ray”; you will have a complete deployment approach that can be applied to personal websites, API services, Docker projects, and other cloud-server applications.</p>
 <p>Finally, remember that the use of cloud servers and network services should comply with the laws and regulations of your jurisdiction, the AWS Terms of Service, and other applicable rules. This article is primarily intended for learning about AWS EC2, Ubuntu, Linux service management, and network configuration.</p>]]></content:encoded>
       <pubDate>Sat, 19 Sep 2026 00:00:00 GMT</pubDate>
-      <guid isPermaLink="true">https://teogeek.pages.dev/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</guid>
+      <guid isPermaLink="true">https://blog.kusteo.com/post.html?slug=aws-ec2-v2ray-ubuntu-deployment-guide-en</guid>
     </item>
     <item>
       <title>Hello World</title>
-      <link>https://teogeek.pages.dev/post.html?slug=hello-world</link>
+      <link>https://blog.kusteo.com/post.html?slug=hello-world</link>
       <description>A short introduction to this blog and what I plan to write here.</description>
       <content:encoded><![CDATA[<h1>Hello World</h1>
 <p>This is the first note on the site. The blog is intentionally simple: Markdown files live in the repository, the browser loads the selected article, and the page renders it on the client.</p>
@@ -443,11 +443,11 @@ Client</code></pre>
 console.log(message);</code></pre>
 <p>That simplicity is useful when the goal is to spend more time writing and less time maintaining infrastructure.</p>]]></content:encoded>
       <pubDate>Thu, 15 Jan 2026 00:00:00 GMT</pubDate>
-      <guid isPermaLink="true">https://teogeek.pages.dev/post.html?slug=hello-world</guid>
+      <guid isPermaLink="true">https://blog.kusteo.com/post.html?slug=hello-world</guid>
     </item>
     <item>
       <title>Building a Small Static Blog</title>
-      <link>https://teogeek.pages.dev/post.html?slug=second-post</link>
+      <link>https://blog.kusteo.com/post.html?slug=second-post</link>
       <description>The design principles behind a browser-rendered Markdown blog with a tiny deployment surface.</description>
       <content:encoded><![CDATA[<h1>Building a Small Static Blog</h1>
 <p>A personal site does not need a large application stack. A handful of HTML pages, one stylesheet, a few browser scripts, and Markdown content can be enough.</p>
@@ -455,7 +455,7 @@ console.log(message);</code></pre>
 <ol><li>Write an article in <code>content/posts/</code>.</li><li>Push it to GitHub.</li><li>GitHub Actions updates the index and feeds.</li><li>Cloudflare Pages serves the repository as static files.</li><li><code>post.html?slug=...</code> fetches the Markdown article and renders it in the browser.</li></ol>
 <p>The result is a deliberately small system with a clear separation between content, metadata, and presentation.</p>]]></content:encoded>
       <pubDate>Sat, 10 Jan 2026 00:00:00 GMT</pubDate>
-      <guid isPermaLink="true">https://teogeek.pages.dev/post.html?slug=second-post</guid>
+      <guid isPermaLink="true">https://blog.kusteo.com/post.html?slug=second-post</guid>
     </item>
   </channel>
 </rss>
